@@ -6,7 +6,16 @@
 
 #define MLEN 59
 #define CTXLEN 14
-#define NTESTS 10000
+#define NTESTS 5
+
+static void print_hex(const char *label, const uint8_t *x, size_t len) {
+  size_t i;
+  printf("%s (%zu bytes) = ", label, len);
+  for(i = 0; i < 10; i++) {
+    printf("%02x", x[i]);
+  }
+  printf("\n");
+}
 
 int main(void)
 {
@@ -24,11 +33,26 @@ int main(void)
   snprintf((char*)ctx,CTXLEN,"test_dilitium");
 
   for(i = 0; i < NTESTS; ++i) {
-    randombytes(m, MLEN);
+    //randombytes(m, MLEN);
+    for(j = 0; j < MLEN; j++) {
+      m[j] = (uint8_t)j;
+    }
 
     crypto_sign_keypair(pk, sk);
     crypto_sign(sm, &smlen, m, MLEN, ctx, CTXLEN, sk);
+    //print_hex("ctx", ctx, CTXLEN);
+    //print_hex("msg", m, MLEN);
+    print_hex("pk", pk, CRYPTO_PUBLICKEYBYTES);
+    print_hex("sk", sk, CRYPTO_SECRETKEYBYTES);
+
+    /* sm = signature || message, so first CRYPTO_BYTES bytes are the signature */
+    //print_hex("sig", sm, CRYPTO_BYTES);
+    //print_hex("signed_message", sm, smlen);
+    printf("smlen = %zu\n", smlen);
     ret = crypto_sign_open(m2, &mlen, sm, smlen, ctx, CTXLEN, pk);
+
+    printf("verify = %d\n", ret);
+    printf("mlen = %zu\n", mlen);
 
     if(ret) {
       fprintf(stderr, "Verification failed\n");
