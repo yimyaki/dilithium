@@ -1,0 +1,46 @@
+
+reduce2.o:     file format pe-x86-64
+
+
+Disassembly of section .text:
+
+0000000000000000 <pqcrystals_dilithium2_ref_montgomery_reduce>:
+   0:	69 c1 01 20 80 03    	imul   $0x3802001,%ecx,%eax
+   6:	48 98                	cltq
+   8:	48 69 c0 ff 1f 80 ff 	imul   $0xffffffffff801fff,%rax,%rax
+   f:	48 01 c8             	add    %rcx,%rax
+  12:	48 c1 e8 20          	shr    $0x20,%rax
+  16:	c3                   	ret
+  17:	66 0f 1f 84 00 00 00 	nopw   0x0(%rax,%rax,1)
+  1e:	00 00 
+
+0000000000000020 <pqcrystals_dilithium2_ref_reduce32>:
+  20:	8d 81 00 00 40 00    	lea    0x400000(%rcx),%eax
+  26:	c1 f8 17             	sar    $0x17,%eax
+  29:	69 c0 ff 1f 80 ff    	imul   $0xff801fff,%eax,%eax
+  2f:	01 c8                	add    %ecx,%eax
+  31:	c3                   	ret
+  32:	0f 1f 00             	nopl   (%rax)
+  35:	66 66 2e 0f 1f 84 00 	data16 cs nopw 0x0(%rax,%rax,1)
+  3c:	00 00 00 00 
+
+0000000000000040 <pqcrystals_dilithium2_ref_caddq>:
+  40:	89 c8                	mov    %ecx,%eax
+  42:	c1 f8 1f             	sar    $0x1f,%eax
+  45:	25 01 e0 7f 00       	and    $0x7fe001,%eax
+  4a:	01 c8                	add    %ecx,%eax
+  4c:	c3                   	ret
+  4d:	0f 1f 00             	nopl   (%rax)
+
+0000000000000050 <pqcrystals_dilithium2_ref_freeze>:
+  50:	8d 81 00 00 40 00    	lea    0x400000(%rcx),%eax
+  56:	c1 f8 17             	sar    $0x17,%eax
+  59:	69 c0 ff 1f 80 ff    	imul   $0xff801fff,%eax,%eax
+  5f:	01 c1                	add    %eax,%ecx
+  61:	89 c8                	mov    %ecx,%eax
+  63:	c1 f8 1f             	sar    $0x1f,%eax
+  66:	25 01 e0 7f 00       	and    $0x7fe001,%eax
+  6b:	01 c8                	add    %ecx,%eax
+  6d:	c3                   	ret
+  6e:	90                   	nop
+  6f:	90                   	nop

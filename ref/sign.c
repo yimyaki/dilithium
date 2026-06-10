@@ -1,4 +1,6 @@
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "params.h"
 #include "sign.h"
 #include "packing.h"
@@ -7,6 +9,69 @@
 #include "randombytes.h"
 #include "symmetric.h"
 #include "fips202.h"
+
+/*static void dump_cs1_attempt(const char *status,
+                             unsigned int attempt,
+                             const polyvecl *cs1)
+{
+  const char *path = getenv("DILITHIUM_CS1_LOG");
+  FILE *f;
+
+  if(path == NULL)
+    path = "cs1_log.csv";
+
+  f = fopen(path, "a");
+  if(f == NULL)
+    return;
+
+  for(unsigned int i = 0; i < L; i++) {
+    for(unsigned int j = 0; j < N; j++) {
+      int32_t v = cs1->vec[i].coeffs[j];
+
+      /// Convert mod-q representation to centered signed value /
+      if(v > Q/2)
+        v -= Q;
+
+      fprintf(f, "%s,%u,%u,%u,%d\n", status, attempt, i, j, v);
+    }
+  }
+
+  fclose(f);
+}*/
+static void dump_cs1_attempt(const char *status,
+                             unsigned int attempt,
+                             const polyvecl *cs1)
+{
+  static unsigned long long trace_id = 0;
+
+  const char *path = getenv("DILITHIUM_CS1_LOG");
+  FILE *f;
+
+  if(path == NULL)
+    path = "cs1_log.csv";
+
+  f = fopen(path, "a");
+  if(f == NULL)
+    return;
+
+  fprintf(f, "%llu,%s,%u", trace_id, status, attempt);
+
+  for(unsigned int i = 0; i < L; i++) {
+    for(unsigned int j = 0; j < N; j++) {
+      int32_t v = cs1->vec[i].coeffs[j];
+
+      if(v > Q/2)
+        v -= Q;
+
+      fprintf(f, ",%d", v);
+    }
+  }
+
+  fprintf(f, "\n");
+
+  trace_id++;
+  fclose(f);
+}
 
 /*************************************************
 * Name:        crypto_sign_keypair
@@ -61,6 +126,28 @@ int crypto_sign_keypair(uint8_t *pk, uint8_t *sk) {
 
   /* Compute H(rho, t1) and write secret key */
   shake256(tr, TRBYTES, pk, CRYPTO_PUBLICKEYBYTES);
+  //printf("s1:\n");
+
+/*for(int i = 0; i < L; i++) {
+  printf("poly %d:\n", i);
+
+  for(int j = 0; j < N; j++) {
+    printf("%d ", s1.vec[i].coeffs[j]);
+  }
+
+  printf("\n");
+}*/
+FILE *sf = fopen("s1_secret.csv", "w");
+if(sf) {
+  fprintf(sf, "vec,coeff,value\n");
+  for(int i = 0; i < L; i++) {
+    for(int j = 0; j < N; j++) {
+      fprintf(sf, "%d,%d,%d\n", i, j, s1.vec[i].coeffs[j]);
+    }
+  }
+  fclose(sf);
+}
+
   pack_sk(sk, rho, tr, key, &t0, &s1, &s2);
 
   return 0;
@@ -95,7 +182,7 @@ int crypto_sign_signature_internal(uint8_t *sig,
   uint8_t seedbuf[2*SEEDBYTES + TRBYTES + 2*CRHBYTES];
   uint8_t *rho, *tr, *key, *mu, *rhoprime;
   uint16_t nonce = 0;
-  polyvecl mat[K], s1, y, z;
+  polyvecl mat[K], s1, y, z, cs1_log;
   polyveck t0, s2, w1, w0, h;
   poly cp;
   keccak_state state;
@@ -106,6 +193,8 @@ int crypto_sign_signature_internal(uint8_t *sig,
   mu = key + SEEDBYTES;
   rhoprime = mu + CRHBYTES;
   unpack_sk(rho, tr, key, &t0, &s1, &s2, sk);
+
+  
 
   /* Compute mu = CRH(tr, pre, msg) */
   shake256_init(&state);
@@ -151,11 +240,16 @@ rej:
   shake256_finalize(&state);
   shake256_squeeze(sig, CTILDEBYTES, &state);
   poly_challenge(&cp, sig);
+  /* Force first challenge coefficient */
+  if(cp.coeffs[0]==0)
+    cp.coeffs[0] = 1;
   poly_ntt(&cp);
 
   /* Compute z, reject if it reveals secret */
   polyvecl_pointwise_poly_montgomery(&z, &cp, &s1);
   polyvecl_invntt_tomont(&z);
+  /* Save c*s1 before adding y */
+  cs1_log = z;
   polyvecl_add(&z, &z, &y);
   polyvecl_reduce(&z);
   if(polyvecl_chknorm(&z, GAMMA1 - BETA))
@@ -167,22 +261,28 @@ rej:
   polyveck_invntt_tomont(&h);
   polyveck_sub(&w0, &w0, &h);
   polyveck_reduce(&w0);
-  if(polyveck_chknorm(&w0, GAMMA2 - BETA))
+  if(polyveck_chknorm(&w0, GAMMA2 - BETA)){
+    dump_cs1_attempt("invalid", nonce - 1, &cs1_log);
     goto rej;
-
+  }
   /* Compute hints for w1 */
   polyveck_pointwise_poly_montgomery(&h, &cp, &t0);
   polyveck_invntt_tomont(&h);
   polyveck_reduce(&h);
-  if(polyveck_chknorm(&h, GAMMA2))
+  if(polyveck_chknorm(&h, GAMMA2)){
+    dump_cs1_attempt("invalid", nonce - 1, &cs1_log);
     goto rej;
+  }
 
   polyveck_add(&w0, &w0, &h);
   n = polyveck_make_hint(&h, &w0, &w1);
-  if(n > OMEGA)
+  if(n > OMEGA){
+    dump_cs1_attempt("invalid", nonce - 1, &cs1_log);
     goto rej;
-
+  }
   /* Write signature */
+  /* This attempt survived all rejection checks */
+  dump_cs1_attempt("valid", nonce - 1, &cs1_log);
   pack_sig(sig, sig, &z, &h);
   *siglen = CRYPTO_BYTES;
   return 0;

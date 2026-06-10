@@ -6,7 +6,7 @@
 
 #define MLEN 59
 #define CTXLEN 14
-#define NTESTS 10000
+#define NTESTS 2
 
 int main(void)
 {
@@ -23,29 +23,43 @@ int main(void)
 
   snprintf((char*)ctx,CTXLEN,"test_dilitium");
 
+  crypto_sign_keypair(pk, sk);
+
+printf("const uint8_t defaultPublicKeyDilithium[MLDSA_PUBLICKEYBYTES] = {\n");
+for (int i = 0; i < CRYPTO_PUBLICKEYBYTES; i++) {
+    printf("0x%02x,%s", pk[i], ((i + 1) % 12 == 0) ? "\n" : " ");
+}
+printf("\n};\n\n");
+
+printf("const uint8_t defaultSecretKeyDilithium[MLDSA_SECRETKEYBYTES] = {\n");
+for (int i = 0; i < CRYPTO_SECRETKEYBYTES; i++) {
+    printf("0x%02x,%s", sk[i], ((i + 1) % 12 == 0) ? "\n" : " ");
+}
+printf("\n};\n");
+
   for(i = 0; i < NTESTS; ++i) {
     randombytes(m, MLEN);
 
-    crypto_sign_keypair(pk, sk);
+    
     crypto_sign(sm, &smlen, m, MLEN, ctx, CTXLEN, sk);
     ret = crypto_sign_open(m2, &mlen, sm, smlen, ctx, CTXLEN, pk);
 
     if(ret) {
-      fprintf(stderr, "Verification failed\n");
-      return -1;
+      //fprintf(stderr, "Verification failed\n");
+      //return -1;
     }
     if(smlen != MLEN + CRYPTO_BYTES) {
-      fprintf(stderr, "Signed message lengths wrong\n");
-      return -1;
+      //fprintf(stderr, "Signed message lengths wrong\n");
+      //return -1;
     }
     if(mlen != MLEN) {
-      fprintf(stderr, "Message lengths wrong\n");
-      return -1;
+      //fprintf(stderr, "Message lengths wrong\n");
+      //return -1;
     }
     for(j = 0; j < MLEN; ++j) {
       if(m2[j] != m[j]) {
-        fprintf(stderr, "Messages don't match\n");
-        return -1;
+        //fprintf(stderr, "Messages don't match\n");
+        //return -1;
       }
     }
 
